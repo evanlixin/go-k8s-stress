@@ -6,9 +6,12 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"os"
+	"os/signal"
 	"os/user"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/pborman/uuid"
@@ -23,6 +26,8 @@ import (
 type Config struct {
 	Time           uint
 	ConCurrencyNum uint
+
+	Interval uint
 }
 
 var config Config
@@ -38,6 +43,7 @@ func init() {
 	flag.UintVar(&config.Time, "time", 10, "run time duration(second)")
 	flag.UintVar(&config.ConCurrencyNum, "concurrency", 10, "concurrency number")
 
+	flag.UintVar(&config.Interval, "interval", 10, "run interval")
 	flag.Parse()
 }
 
@@ -112,22 +118,34 @@ func main() {
 		return
 	}
 
-	var (
-		num  int32
-		timeDuration int64
-		wg   = &sync.WaitGroup{}
-	)
+	signalChan := make(chan os.Signal, 2)
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
 
-	for i := 0; i < int(config.ConCurrencyNum); i++ {
-		wg.Add(1)
-		go work(i, clientSet.CoreV1().Pods("evanlixin"), "evanlixin", wg, time.Duration(config.Time) * time.Second, &num, &timeDuration)
+	for {
+		select {
+		case <-signalChan:
+			log.Println("signal quit")
+			return
+		case <-time.After(time.Duration(config.Interval) * time.Second):
+		}
+
+		var (
+			num  int32
+			timeDuration int64
+			wg   = &sync.WaitGroup{}
+		)
+
+		for i := 0; i < int(config.ConCurrencyNum); i++ {
+			wg.Add(1)
+			go work(i, clientSet.CoreV1().Pods("evanlixin"), "evanlixin", wg, time.Duration(config.Time) * time.Second, &num, &timeDuration)
+		}
+
+		log.Printf("Done creating %d goroutines", 1)
+		wg.Wait()
+		log.Printf("%v\n", num)
+		log.Printf("Done")
+		log.Printf("\n\n\n\n\n")
 	}
-
-	log.Printf("Done creating %d goroutines", 1)
-	wg.Wait()
-	log.Printf("%v\n", num)
-	log.Printf("Done")
-
 }
 
 func GetHomePath() string {
