@@ -126,7 +126,7 @@ func main() {
 		case <-signalChan:
 			log.Println("signal quit")
 			return
-		case <-time.After(time.Duration(config.Interval) * time.Second):
+		case <-time.After(time.Duration(config.Interval) * time.Millisecond):
 		}
 
 		var (
